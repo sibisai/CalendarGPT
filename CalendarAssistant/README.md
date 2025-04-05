@@ -6,14 +6,25 @@ A natural language calendar management app for iOS that allows you to create, ed
 
 - Create calendar events using natural language input
 - View, edit, and delete existing calendar events
+- Navigate between days to view past and future schedules
 - Filter out all-day events for a cleaner view
 - Color-code events based on calendar categories
 - Secure handling of API keys and sensitive data
-- Multi-event modification capabilities (new!)
+- Haptic and animation feedback for enhanced user experience
+- Multi-event modification capabilities
   - Swap events between time slots
   - Clear events in a specific time range
   - Copy events from one day to another
   - Apply custom modifications to multiple events
+
+## UI/UX Features
+
+- Intuitive messaging-style interface with input field at the bottom
+- Day navigation with previous/next buttons and Today shortcut
+- Visual day indicators (Today, Yesterday, Tomorrow)
+- Responsive animations and haptic feedback on interactions
+- Proper keyboard behavior with return key and automatic dismissal
+- Send button with paperplane icon for intuitive input submission
 
 ## Requirements
 
@@ -68,15 +79,19 @@ This application uses several security measures to protect sensitive information
 ## Usage
 
 1. Grant calendar access when prompted
-2. Type natural language event descriptions in the input field
-3. Review and confirm event details before creation
-4. View your events in the timeline
-5. Tap on events to edit or delete them
-6. Change event calendars to organize with different colors
+2. Type natural language event descriptions in the input field at the bottom
+3. Press the send button or hit return to submit your input
+4. Review and confirm event details before creation
+5. View your events in the timeline
+6. Use the navigation buttons to view different days
+7. Tap on events to edit or delete them
+8. Change event calendars to organize with different colors
+9. Feel the haptic feedback and animations for a more engaging experience
 
 ## Calendar Features
 
 - View all your events in a clean timeline interface
+- Navigate between days to view past and future schedules
 - Filter out all-day events for a cleaner view
 - Color-code events based on their calendar
 - Change which calendar an event belongs to
@@ -92,7 +107,7 @@ The app uses OpenAI's API to parse natural language input into structured event 
 - "Dentist appointment next Tuesday at 10am"
 - "Weekly team standup every Monday at 9am"
 
-### Multi-Event Modifications (New!)
+### Multi-Event Modifications
 - "Clear all events on Friday"
 - "Copy today's schedule to tomorrow"
 - "Swap my morning and afternoon meetings"
@@ -123,6 +138,21 @@ Applies specific changes to multiple events. For example:
 - "Change all meetings with Sarah to online"
 - "Move all afternoon events 30 minutes later"
 
+## Haptic and Animation Feedback
+
+The app provides sensory feedback to enhance the user experience:
+
+### Haptic Feedback
+- Medium impact haptic when submitting input
+- Success notification haptic when events are created successfully
+- Error notification haptic when operations fail
+- Light impact haptic for cancel actions
+
+### Animation Feedback
+- Scale animations on input submission
+- Button press animations for confirmation and cancellation
+- Spring physics for natural-feeling interactions
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
@@ -142,3 +172,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [OpenAI](https://openai.com/) for natural language processing
 - [Apple EventKit](https://developer.apple.com/documentation/eventkit) for calendar integration
 - [SwiftUI](https://developer.apple.com/xcode/swiftui/) for the user interface
+
