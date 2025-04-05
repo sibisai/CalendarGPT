@@ -81,6 +81,8 @@ struct NaturalLanguageInputView: View {
                 }
             } catch {
                 DispatchQueue.main.async {
+                    print("Error occurred:", error)
+                    debugPrint(error)
                     self.errorMessage = "Error: \(error.localizedDescription)"
                     self.isProcessing = false
                 }

@@ -3,7 +3,9 @@
 //  CalendarAssistant
 //
 //  Created by Sibi on 4/4/25.
+//  Updated with multi-event modification capabilities
 //
+
 import UIKit
 import SwiftUI
 import EventKit
@@ -18,6 +20,10 @@ struct ContentView: View {
     @State private var showingEventEdit = false
     @State private var errorMessage: String?
     @State private var isRefreshing = false
+    
+    // New state variables for modification mode
+    @State private var isModificationMode = false
+    @State private var modificationDetails: ModificationDetails?
     
     // Reference to your OpenAI service
     private let openAIService = OpenAIService()
@@ -38,7 +44,7 @@ struct ContentView: View {
                                 .foregroundColor(.blue)
                                 .padding(.leading, 8)
                             
-                            TextField("Add event (e.g., Meeting with John tomorrow at 2pm)", text: $inputText)
+                            TextField("Add event or modify events (e.g., Meeting with John tomorrow at 2pm)", text: $inputText)
                                 .padding(10)
                                 .background(Color(.systemBackground))
                                 .cornerRadius(8)
@@ -185,7 +191,9 @@ struct ContentView: View {
             .navigationTitle("ICGPT")
             .navigationBarTitleDisplayMode(.large)
             .sheet(isPresented: $showingConfirmation) {
-                if let details = eventDetails {
+                if isModificationMode, let details = modificationDetails {
+                    ModificationConfirmationView(modificationDetails: details, onConfirm: applyModifications)
+                } else if let details = eventDetails {
                     EventConfirmationView(eventDetails: details, onConfirm: createEvent)
                 }
             }
@@ -262,6 +270,7 @@ struct ContentView: View {
         }
     }
 
+    // Updated process input method to handle both single events and modifications
     private func processInput() {
         guard !inputText.isEmpty else { return }
         
@@ -270,15 +279,30 @@ struct ContentView: View {
         
         Task {
             do {
-                let details = try await openAIService.parseEventDetails(from: inputText)
+                // Use the new combined method to classify and parse input
+                let result = try await openAIService.classifyAndParseInput(from: inputText)
                 
-                DispatchQueue.main.async {
-                    self.eventDetails = details
+                await MainActor.run {
+                    switch result {
+                    case .singleEvent(let details):
+                        // Handle single event creation
+                        self.eventDetails = details
+                        self.isModificationMode = false
+                        self.modificationDetails = nil
+                        self.showingConfirmation = true
+                        
+                    case .modification(let details):
+                        // Handle multi-event modification
+                        self.modificationDetails = details
+                        self.isModificationMode = true
+                        self.eventDetails = nil
+                        self.showingConfirmation = true
+                    }
+                    
                     self.isProcessing = false
-                    self.showingConfirmation = true
                 }
             } catch {
-                DispatchQueue.main.async {
+                await MainActor.run {
                     self.errorMessage = "Error: \(error.localizedDescription)"
                     self.isProcessing = false
                 }
@@ -286,24 +310,42 @@ struct ContentView: View {
         }
     }
     
+    // Existing method for creating a single event
     private func createEvent(details: EventDetails) {
         Task {
             do {
                 try await calendarManager.createEventFromDetails(details)
-                DispatchQueue.main.async {
+                await MainActor.run {
                     self.inputText = ""
                     self.errorMessage = nil
                 }
             } catch {
-                DispatchQueue.main.async {
+                await MainActor.run {
                     self.errorMessage = "Failed to create event: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+    
+    // New method for applying modifications to multiple events
+    private func applyModifications(details: ModificationDetails) {
+        Task {
+            do {
+                try await calendarManager.applyModifications(modificationDetails: details)
+                await MainActor.run {
+                    self.inputText = ""
+                    self.errorMessage = nil
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to apply modifications: \(error.localizedDescription)"
                 }
             }
         }
     }
 }
 
-// Event row component for the list
+// Event row component for the list (unchanged)
 struct EventRow: View {
     let event: EKEvent
     
@@ -366,7 +408,7 @@ struct EventRow: View {
     }
 }
 
-
+// Preview provider
 #Preview {
     ContentView()
 }

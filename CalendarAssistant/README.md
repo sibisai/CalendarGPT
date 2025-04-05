@@ -9,6 +9,11 @@ A natural language calendar management app for iOS that allows you to create, ed
 - Filter out all-day events for a cleaner view
 - Color-code events based on calendar categories
 - Secure handling of API keys and sensitive data
+- Multi-event modification capabilities (new!)
+  - Swap events between time slots
+  - Clear events in a specific time range
+  - Copy events from one day to another
+  - Apply custom modifications to multiple events
 
 ## Requirements
 
@@ -81,10 +86,42 @@ This application uses several security measures to protect sensitive information
 
 The app uses OpenAI's API to parse natural language input into structured event data:
 
+### Single Event Creation
 - "Meeting with John tomorrow at 2pm"
 - "Lunch with Sarah on Friday from 12-1pm"
 - "Dentist appointment next Tuesday at 10am"
 - "Weekly team standup every Monday at 9am"
+
+### Multi-Event Modifications (New!)
+- "Clear all events on Friday"
+- "Copy today's schedule to tomorrow"
+- "Swap my morning and afternoon meetings"
+- "Move all meetings on Thursday to Friday"
+- "Change all events with John to online meetings"
+
+## Multi-Event Modification Types
+
+The app supports several types of multi-event modifications:
+
+### Swap
+Exchanges events between different time slots. For example:
+- "Swap my 9am and 2pm meetings"
+- "Switch Thursday's events with Friday's"
+
+### Clear
+Removes events from a specified time range. For example:
+- "Clear my schedule for tomorrow"
+- "Delete all meetings this Friday"
+
+### Copy
+Duplicates events from one time period to another. For example:
+- "Copy today's events to next Monday"
+- "Duplicate yesterday's schedule for tomorrow"
+
+### Custom
+Applies specific changes to multiple events. For example:
+- "Change all meetings with Sarah to online"
+- "Move all afternoon events 30 minutes later"
 
 ## Contributing
 

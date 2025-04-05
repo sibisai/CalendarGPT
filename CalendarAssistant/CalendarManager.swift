@@ -3,7 +3,9 @@
 //  CalendarAssistant
 //
 //  Created by Sibi on 4/4/25.
+//  Updated with multi-event modification capabilities
 //
+
 import Foundation
 import EventKit
 import SwiftUI
@@ -14,7 +16,6 @@ class CalendarManager: ObservableObject {
     @Published var hasCalendarAccess = false
     
     func requestAccess() {
-        // Simple approach that worked before
         if #available(iOS 17.0, *) {
             eventStore.requestFullAccessToEvents { [weak self] granted, error in
                 DispatchQueue.main.async {
@@ -35,8 +36,6 @@ class CalendarManager: ObservableObject {
             }
         }
     }
-
-
 
     // Helper function to convert authorization status to string
     private func authStatusString(_ status: EKAuthorizationStatus) -> String {
@@ -79,7 +78,6 @@ class CalendarManager: ObservableObject {
     
     func loadTodaysEvents() {
         guard hasCalendarAccess else {
-            print("Cannot load events: No calendar access")
             return
         }
         
@@ -91,37 +89,25 @@ class CalendarManager: ObservableObject {
         components.day = 1
         let endDate = calendar.date(byAdding: components, to: startDate)!
         
-        print("Fetching events from \(startDate) to \(endDate)")
-        
         // Create the predicate for events
         let predicate = eventStore.predicateForEvents(withStart: startDate, end: endDate, calendars: nil)
         
         // Fetch events
         let events = eventStore.events(matching: predicate)
-        print("Found \(events.count) total events before filtering")
         
         // Always filter out all-day events
         let filteredEvents = events.filter { !$0.isAllDay }
-        print("After filtering all-day events: \(filteredEvents.count) events")
         
         // Sort events by start date
         let sortedEvents = filteredEvents.sorted {
             $0.startDate < $1.startDate
         }
-        /* // For test printing events
-        for (index, event) in sortedEvents.enumerated() {
-            let title = event.title ?? "Untitled"
-            let startDate = event.startDate?.description ?? "Unknown start date"
-            print("Event \(index + 1): \(title) at \(startDate)")
-        }
-        */
         
         DispatchQueue.main.async {
             self.todaysEvents = sortedEvents
         }
     }
 
-    
     // Create event from parsed details
     func createEventFromDetails(_ details: EventDetails) async throws {
         // Create a new event
@@ -194,9 +180,8 @@ class CalendarManager: ObservableObject {
     
     func listAvailableCalendars() {
         let calendars = eventStore.calendars(for: .event)
-        print("Available calendars (\(calendars.count)):")
         for (index, calendar) in calendars.enumerated() {
-            print("\(index + 1). \(calendar.title) (source: \(calendar.source.title))")
+            print("\(index + 1). \(calendar.title) (source: \(calendar.source.title)) - Writable: \(calendar.allowsContentModifications)")
         }
     }
     
@@ -300,5 +285,454 @@ class CalendarManager: ObservableObject {
             location: event.location,
             attendees: event.attendees?.map { $0.name ?? "" } ?? []
         )
+    }
+    
+    // New method to apply modifications to multiple events
+    func applyModifications(modificationDetails: ModificationDetails) async throws {
+        // Get date formatters
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        
+        // Get calendar
+        let calendar = Calendar.current
+        
+        // Determine the time range for the modifications
+        var startDate: Date
+        var endDate: Date
+        
+        if let timeRangeStart = modificationDetails.timeRangeStart,
+           let timeRangeEnd = modificationDetails.timeRangeEnd,
+           let start = dateFormatter.date(from: timeRangeStart),
+           let end = dateFormatter.date(from: timeRangeEnd) {
+            // Use the specified time range
+            startDate = calendar.startOfDay(for: start)
+            // Add 1 day to end date to include the entire day
+            endDate = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: end))!
+        } else {
+            // Default to today if no time range is specified
+            startDate = calendar.startOfDay(for: Date())
+            endDate = calendar.date(byAdding: .day, value: 1, to: startDate)!
+        }
+        
+        // Create the predicate for events in the time range
+        let predicate = eventStore.predicateForEvents(withStart: startDate, end: endDate, calendars: nil)
+        
+        // Fetch events in the time range
+        var eventsInRange = eventStore.events(matching: predicate)
+        
+        // Filter out all-day events
+        eventsInRange = eventsInRange.filter { !$0.isAllDay }
+        
+        // Filter out events from specific calendars (like Todoist)
+        eventsInRange = eventsInRange.filter { event in
+            // Skip events from Todoist calendar
+            if event.calendar.title.contains("Todoist") {
+                return false
+            }
+            return true
+        }
+        
+        // Apply modifications based on the modification type
+        switch modificationDetails.modificationType {
+        case .swap:
+            try await applySwapModifications(modificationDetails, eventsInRange, dateFormatter, timeFormatter)
+            
+        case .clear:
+            try await applyClearModifications(modificationDetails, eventsInRange)
+            
+        case .copy:
+            try await applyCopyModifications(modificationDetails, eventsInRange, dateFormatter, timeFormatter)
+            
+        case .other:
+            try await applyCustomModifications(modificationDetails, eventsInRange, dateFormatter, timeFormatter)
+        }
+        
+        // Refresh the events list
+        await MainActor.run {
+            self.loadTodaysEvents()
+        }
+    }
+    
+    // Helper method to apply swap modifications
+    private func applySwapModifications(_ details: ModificationDetails, _ eventsInRange: [EKEvent], _ dateFormatter: DateFormatter, _ timeFormatter: DateFormatter) async throws {
+        // If no specific modifications, try to swap all events
+        if details.eventModifications.isEmpty {
+            // If we have at least two events, swap them all in pairs
+            if eventsInRange.count >= 2 {
+                for i in stride(from: 0, to: eventsInRange.count - 1, by: 2) {
+                    let event1 = eventsInRange[i]
+                    let event2 = eventsInRange[i + 1]
+                    
+                    // Check if both calendars allow modifications
+                    if event1.calendar.allowsContentModifications && event2.calendar.allowsContentModifications {
+                        // Swap titles and locations
+                        let tempTitle = event1.title
+                        let tempLocation = event1.location
+                        
+                        event1.title = event2.title
+                        event1.location = event2.location
+                        
+                        event2.title = tempTitle
+                        event2.location = tempLocation
+                        
+                        // Save the modified events
+                        do {
+                            try eventStore.save(event1, span: .thisEvent)
+                            try eventStore.save(event2, span: .thisEvent)
+                        } catch {
+                            // Continue with other events if one fails
+                            continue
+                        }
+                    }
+                }
+            }
+            return
+        }
+        
+        // Implementation for swapping events with specific modifications
+        for modification in details.eventModifications {
+            // Find the events to swap based on titles, dates, and times
+            let eventsToSwap = findEventsForModification(modification, eventsInRange)
+            
+            if eventsToSwap.count >= 2 {
+                // Swap the first two events found
+                let event1 = eventsToSwap[0]
+                let event2 = eventsToSwap[1]
+                
+                // Check if both calendars allow modifications
+                if event1.calendar.allowsContentModifications && event2.calendar.allowsContentModifications {
+                    // Create temporary copies of event details
+                    let event1Details = convertToEventDetails(event1)
+                    let event2Details = convertToEventDetails(event2)
+                    
+                    // Swap titles and locations
+                    let tempTitle = event1.title
+                    let tempLocation = event1.location
+                    
+                    event1.title = event2.title
+                    event1.location = event2.location
+                    
+                    event2.title = tempTitle
+                    event2.location = tempLocation
+                    
+                    // Save the modified events
+                    do {
+                        try eventStore.save(event1, span: .thisEvent)
+                        try eventStore.save(event2, span: .thisEvent)
+                    } catch {
+                        // Continue with other modifications if one fails
+                        continue
+                    }
+                }
+            }
+        }
+    }
+    
+    // Helper method to apply clear modifications
+    private func applyClearModifications(_ details: ModificationDetails, _ eventsInRange: [EKEvent]) async throws {
+        // Implementation for clearing events
+        if details.eventModifications.isEmpty {
+            // If no specific events are mentioned, clear all events in the range
+            for event in eventsInRange {
+                // Check if calendar allows modifications
+                if event.calendar.allowsContentModifications {
+                    do {
+                        try eventStore.remove(event, span: .thisEvent)
+                    } catch {
+                        // Continue with other events if one fails
+                        continue
+                    }
+                }
+            }
+        } else {
+            // Clear only specific events
+            for modification in details.eventModifications {
+                let eventsToClear = findEventsForModification(modification, eventsInRange)
+                
+                for event in eventsToClear {
+                    // Check if calendar allows modifications
+                    if event.calendar.allowsContentModifications {
+                        do {
+                            try eventStore.remove(event, span: .thisEvent)
+                        } catch {
+                            // Continue with other events if one fails
+                            continue
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Helper method to apply copy modifications
+    private func applyCopyModifications(_ details: ModificationDetails, _ eventsInRange: [EKEvent], _ dateFormatter: DateFormatter, _ timeFormatter: DateFormatter) async throws {
+        // Implementation for copying events
+        let calendar = Calendar.current
+        
+        // Determine the target date for copying
+        var targetDate: Date
+        
+        // If no specific modifications but we have a time range in the main details
+        if details.eventModifications.isEmpty {
+            // For "copy yesterday events" or similar, we want to copy to today by default
+            // unless a specific target date is provided
+            if details.timeRangeEnd != nil && details.timeRangeEnd != details.timeRangeStart {
+                // If timeRangeEnd is different from timeRangeStart, use it as target
+                guard let targetDateString = details.timeRangeEnd,
+                      let parsedTargetDate = dateFormatter.date(from: targetDateString) else {
+                    // If no valid target date, default to today
+                    targetDate = calendar.startOfDay(for: Date())
+                    
+                    // Copy all events to today
+                    try await copyEventsToDate(eventsInRange, targetDate, calendar, dateFormatter, timeFormatter)
+                    return
+                }
+                
+                targetDate = parsedTargetDate
+            } else {
+                // Default to today if no specific target is provided
+                targetDate = calendar.startOfDay(for: Date())
+            }
+            
+            // Copy all events to the target date
+            try await copyEventsToDate(eventsInRange, targetDate, calendar, dateFormatter, timeFormatter)
+            return
+        }
+        
+        // Process specific modifications
+        for modification in details.eventModifications {
+            // Find the events to copy
+            let eventsToCopy = findEventsForModification(modification, eventsInRange)
+            
+            // Get target date
+            if let targetDateString = modification.targetDate,
+               let parsedTargetDate = dateFormatter.date(from: targetDateString) {
+                targetDate = parsedTargetDate
+            } else {
+                // Default to today if no specific target is provided
+                targetDate = calendar.startOfDay(for: Date())
+            }
+            
+            // Copy events with the specific target time if provided
+            for event in eventsToCopy {
+                // Create a new event as a copy
+                let newEvent = EKEvent(eventStore: eventStore)
+                newEvent.title = event.title
+                newEvent.location = event.location
+                newEvent.notes = event.notes
+                
+                // Try to use the source event's calendar if it allows modifications, otherwise use default
+                if event.calendar.allowsContentModifications {
+                    newEvent.calendar = event.calendar
+                } else {
+                    newEvent.calendar = eventStore.defaultCalendarForNewEvents
+                }
+                
+                // Calculate the date difference
+                let originalDate = calendar.startOfDay(for: event.startDate)
+                let targetDay = calendar.startOfDay(for: targetDate)
+                let daysDifference = calendar.dateComponents([.day], from: originalDate, to: targetDay).day ?? 0
+                
+                // Apply the date difference to start and end dates
+                newEvent.startDate = calendar.date(byAdding: .day, value: daysDifference, to: event.startDate)!
+                newEvent.endDate = calendar.date(byAdding: .day, value: daysDifference, to: event.endDate)!
+                
+                // If a specific target time is provided, adjust the time
+                if let targetTimeString = modification.targetStartTime,
+                   let targetTime = timeFormatter.date(from: targetTimeString) {
+                    let targetHour = calendar.component(.hour, from: targetTime)
+                    let targetMinute = calendar.component(.minute, from: targetTime)
+                    
+                    var startComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: newEvent.startDate)
+                    startComponents.hour = targetHour
+                    startComponents.minute = targetMinute
+                    
+                    if let adjustedStartDate = calendar.date(from: startComponents) {
+                        // Calculate the duration of the original event
+                        let duration = event.endDate.timeIntervalSince(event.startDate)
+                        
+                        newEvent.startDate = adjustedStartDate
+                        newEvent.endDate = adjustedStartDate.addingTimeInterval(duration)
+                    }
+                }
+                
+                // Save the new event
+                do {
+                    try eventStore.save(newEvent, span: .thisEvent)
+                } catch {
+                    // Continue with other events if one fails
+                    continue
+                }
+            }
+        }
+    }
+    
+    // Helper method to copy events to a specific date
+    private func copyEventsToDate(_ events: [EKEvent], _ targetDate: Date, _ calendar: Calendar, _ dateFormatter: DateFormatter, _ timeFormatter: DateFormatter) async throws {
+        for event in events {
+            // Create a new event as a copy
+            let newEvent = EKEvent(eventStore: eventStore)
+            newEvent.title = event.title
+            newEvent.location = event.location
+            newEvent.notes = event.notes
+            
+            // Try to use the source event's calendar if it allows modifications, otherwise use default
+            if event.calendar.allowsContentModifications {
+                newEvent.calendar = event.calendar
+            } else {
+                newEvent.calendar = eventStore.defaultCalendarForNewEvents
+            }
+            
+            // Calculate the date difference
+            let originalDate = calendar.startOfDay(for: event.startDate)
+            let targetDay = calendar.startOfDay(for: targetDate)
+            let daysDifference = calendar.dateComponents([.day], from: originalDate, to: targetDay).day ?? 0
+            
+            // Apply the date difference to start and end dates
+            newEvent.startDate = calendar.date(byAdding: .day, value: daysDifference, to: event.startDate)!
+            newEvent.endDate = calendar.date(byAdding: .day, value: daysDifference, to: event.endDate)!
+            
+            // Save the new event
+            do {
+                try eventStore.save(newEvent, span: .thisEvent)
+            } catch {
+                // Continue with other events if one fails
+                continue
+            }
+        }
+    }
+    
+    // Helper method to apply custom modifications
+    private func applyCustomModifications(_ details: ModificationDetails, _ eventsInRange: [EKEvent], _ dateFormatter: DateFormatter, _ timeFormatter: DateFormatter) async throws {
+        // Implementation for custom modifications
+        for modification in details.eventModifications {
+            // Find the events to modify
+            let eventsToModify = findEventsForModification(modification, eventsInRange)
+            
+            for event in eventsToModify {
+                // Check if calendar allows modifications
+                if !event.calendar.allowsContentModifications {
+                    continue
+                }
+                
+                // Apply title change if specified
+                if let newTitle = modification.newTitle {
+                    event.title = newTitle
+                }
+                
+                // Apply location change if specified
+                if let newLocation = modification.newLocation {
+                    event.location = newLocation
+                }
+                
+                // Apply time changes if specified
+                if let newStartTimeString = modification.newStartTime,
+                   let newStartTime = timeFormatter.date(from: newStartTimeString) {
+                    let calendar = Calendar.current
+                    let newHour = calendar.component(.hour, from: newStartTime)
+                    let newMinute = calendar.component(.minute, from: newStartTime)
+                    
+                    var startComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: event.startDate)
+                    startComponents.hour = newHour
+                    startComponents.minute = newMinute
+                    
+                    if let adjustedStartDate = calendar.date(from: startComponents) {
+                        // Calculate the original duration
+                        let duration = event.endDate.timeIntervalSince(event.startDate)
+                        
+                        // Update start date and calculate new end date based on original duration
+                        event.startDate = adjustedStartDate
+                        
+                        // If end time is also specified, use it; otherwise, maintain the original duration
+                        if let newEndTimeString = modification.newEndTime,
+                           let newEndTime = timeFormatter.date(from: newEndTimeString) {
+                            let newEndHour = calendar.component(.hour, from: newEndTime)
+                            let newEndMinute = calendar.component(.minute, from: newEndTime)
+                            
+                            var endComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: event.startDate)
+                            endComponents.hour = newEndHour
+                            endComponents.minute = newEndMinute
+                            
+                            if let adjustedEndDate = calendar.date(from: endComponents) {
+                                event.endDate = adjustedEndDate
+                            }
+                        } else {
+                            event.endDate = adjustedStartDate.addingTimeInterval(duration)
+                        }
+                    }
+                }
+                
+                // Save the modified event
+                do {
+                    try eventStore.save(event, span: .thisEvent)
+                } catch {
+                    // Continue with other events if one fails
+                    continue
+                }
+            }
+        }
+    }
+    
+    // Helper method to find events that match a modification
+    private func findEventsForModification(_ modification: EventModification, _ eventsInRange: [EKEvent]) -> [EKEvent] {
+        // If no specific criteria are provided, return all events in range
+        if modification.eventTitle == nil && modification.originalDate == nil && modification.originalStartTime == nil {
+            return eventsInRange
+        }
+        
+        var matchingEvents: [EKEvent] = []
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        
+        for event in eventsInRange {
+            var isMatch = true
+            
+            // Match by title if specified
+            if let eventTitle = modification.eventTitle, !eventTitle.isEmpty {
+                let titleMatch = event.title.lowercased().contains(eventTitle.lowercased())
+                isMatch = isMatch && titleMatch
+            }
+            
+            // Match by date if specified
+            if let originalDateString = modification.originalDate {
+                if let originalDate = dateFormatter.date(from: originalDateString) {
+                    let calendar = Calendar.current
+                    let eventDay = calendar.startOfDay(for: event.startDate)
+                    let originalDay = calendar.startOfDay(for: originalDate)
+                    let dateMatch = calendar.isDate(eventDay, inSameDayAs: originalDay)
+                    isMatch = isMatch && dateMatch
+                } else {
+                    isMatch = false
+                }
+            }
+            
+            // Match by start time if specified
+            if let originalStartTimeString = modification.originalStartTime {
+                if let originalStartTime = timeFormatter.date(from: originalStartTimeString) {
+                    let calendar = Calendar.current
+                    let eventHour = calendar.component(.hour, from: event.startDate)
+                    let eventMinute = calendar.component(.minute, from: event.startDate)
+                    let originalHour = calendar.component(.hour, from: originalStartTime)
+                    let originalMinute = calendar.component(.minute, from: originalStartTime)
+                    
+                    let timeMatch = (eventHour == originalHour && eventMinute == originalMinute)
+                    isMatch = isMatch && timeMatch
+                } else {
+                    isMatch = false
+                }
+            }
+            
+            if isMatch {
+                matchingEvents.append(event)
+            }
+        }
+        
+        return matchingEvents
     }
 }
