@@ -281,7 +281,7 @@ struct ContentView: View {
             do {
                 // Use the new combined method to classify and parse input
                 let result = try await openAIService.classifyAndParseInput(from: inputText)
-                
+                print("INPUT TYPE: \(result)")
                 await MainActor.run {
                     switch result {
                     case .singleEvent(let details):

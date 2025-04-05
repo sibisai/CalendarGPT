@@ -39,6 +39,7 @@ class OpenAIService {
         let now = Date()
         let dateFormatter = DateFormatter()
         dateFormatter.dateStyle = .full
+        dateFormatter.timeZone = TimeZone.current
         let formattedDate = dateFormatter.string(from: now)
         
         // Format dates for API
@@ -49,12 +50,13 @@ class OpenAIService {
         // Current time
         let timeFormatter = DateFormatter()
         timeFormatter.timeStyle = .short
+        timeFormatter.timeZone = TimeZone.current
         let currentTime = timeFormatter.string(from: now)
         
         // Create the request
         var request = URLRequest(url: URL(string: baseURL)!)
         request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)  ", forHTTPHeaderField: "Authorization")
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         
         // Create the request body with a system prompt that handles both classification and parsing
@@ -132,13 +134,16 @@ class OpenAIService {
         // Send the request
         let (data, _) = try await URLSession.shared.data(for: request)
         
+        
         // Parse the response
         let response = try JSONDecoder().decode(OpenAIResponse.self, from: data)
         let content = response.choices[0].message.content.trimmingCharacters(in: .whitespacesAndNewlines)
         
         // Parse the JSON content
         let jsonData = content.data(using: .utf8)!
-        
+        if let jsonString = String(data: jsonData, encoding: .utf8) {
+            print("API RESPONSE: \(jsonString)")
+        }
         // First decode to get the input type
         let typeContainer = try JSONDecoder().decode(InputTypeContainer.self, from: jsonData)
         
@@ -182,6 +187,7 @@ class OpenAIService {
     private func formatDateToISO(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone.current
         return formatter.string(from: date)
     }
 }

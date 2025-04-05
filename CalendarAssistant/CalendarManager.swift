@@ -36,7 +36,7 @@ class CalendarManager: ObservableObject {
             }
         }
     }
-
+    
     // Helper function to convert authorization status to string
     private func authStatusString(_ status: EKAuthorizationStatus) -> String {
         if #available(iOS 17.0, *) {
@@ -65,7 +65,7 @@ class CalendarManager: ObservableObject {
                 return "denied"
             case .authorized:
                 return "authorized"
-            // These cases won't be reached in iOS 16, but needed for exhaustive switch
+                // These cases won't be reached in iOS 16, but needed for exhaustive switch
             case .fullAccess:
                 return "fullAccess"
             case .writeOnly:
@@ -107,7 +107,7 @@ class CalendarManager: ObservableObject {
             self.todaysEvents = sortedEvents
         }
     }
-
+    
     // Create event from parsed details
     func createEventFromDetails(_ details: EventDetails) async throws {
         // Create a new event
@@ -184,14 +184,14 @@ class CalendarManager: ObservableObject {
             print("\(index + 1). \(calendar.title) (source: \(calendar.source.title)) - Writable: \(calendar.allowsContentModifications)")
         }
     }
-    
+    /*
     func checkTimeZoneSettings() {
         print("Current time zone: \(TimeZone.current.identifier)")
         print("Calendar time zone: \(Calendar.current.timeZone.identifier)")
         print("Current date: \(Date())")
         print("Start of today: \(Calendar.current.startOfDay(for: Date()))")
     }
-    
+    */
     // Update an existing event
     func updateEvent(_ event: EKEvent, with details: EventDetails) async throws {
         // Set the title
@@ -356,81 +356,58 @@ class CalendarManager: ObservableObject {
         }
     }
     
+    
     // Helper method to apply swap modifications
     private func applySwapModifications(_ details: ModificationDetails, _ eventsInRange: [EKEvent], _ dateFormatter: DateFormatter, _ timeFormatter: DateFormatter) async throws {
-        // If no specific modifications, try to swap all events
-        if details.eventModifications.isEmpty {
-            // If we have at least two events, swap them all in pairs
-            if eventsInRange.count >= 2 {
-                for i in stride(from: 0, to: eventsInRange.count - 1, by: 2) {
-                    let event1 = eventsInRange[i]
-                    let event2 = eventsInRange[i + 1]
-                    
-                    // Check if both calendars allow modifications
-                    if event1.calendar.allowsContentModifications && event2.calendar.allowsContentModifications {
-                        // Swap titles and locations
-                        let tempTitle = event1.title
-                        let tempLocation = event1.location
-                        
-                        event1.title = event2.title
-                        event1.location = event2.location
-                        
-                        event2.title = tempTitle
-                        event2.location = tempLocation
-                        
-                        // Save the modified events
-                        do {
-                            try eventStore.save(event1, span: .thisEvent)
-                            try eventStore.save(event2, span: .thisEvent)
-                        } catch {
-                            // Continue with other events if one fails
-                            continue
-                        }
-                    }
-                }
+        // Expecting the event_modifications array to contain exactly two modifications with non-nil event titles.
+            guard details.eventModifications.count == 2,
+                  let name1 = details.eventModifications[0].eventTitle,
+                  let name2 = details.eventModifications[1].eventTitle else {
+                print("SWAP DEBUG: Please specify exactly two event titles for swapping.")
+                return
             }
-            return
-        }
-        
-        // Implementation for swapping events with specific modifications
-        for modification in details.eventModifications {
-            // Find the events to swap based on titles, dates, and times
-            let eventsToSwap = findEventsForModification(modification, eventsInRange)
             
-            if eventsToSwap.count >= 2 {
-                // Swap the first two events found
-                let event1 = eventsToSwap[0]
-                let event2 = eventsToSwap[1]
-                
-                // Check if both calendars allow modifications
-                if event1.calendar.allowsContentModifications && event2.calendar.allowsContentModifications {
-                    // Create temporary copies of event details
-                    let event1Details = convertToEventDetails(event1)
-                    let event2Details = convertToEventDetails(event2)
-                    
-                    // Swap titles and locations
-                    let tempTitle = event1.title
-                    let tempLocation = event1.location
-                    
-                    event1.title = event2.title
-                    event1.location = event2.location
-                    
-                    event2.title = tempTitle
-                    event2.location = tempLocation
-                    
-                    // Save the modified events
-                    do {
-                        try eventStore.save(event1, span: .thisEvent)
-                        try eventStore.save(event2, span: .thisEvent)
-                    } catch {
-                        // Continue with other modifications if one fails
-                        continue
-                    }
-                }
+            // Filter events for today
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: Date())
+            let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+            let todayEvents = eventsInRange.filter { event in
+                let eventDay = calendar.startOfDay(for: event.startDate)
+                return eventDay >= today && eventDay < tomorrow
             }
+            
+            guard let event1 = findEventByName(name1, in: todayEvents),
+                  let event2 = findEventByName(name2, in: todayEvents) else {
+                print("SWAP DEBUG: Could not find both events by the provided names.")
+                return
+            }
+            
+//            print("SWAP DEBUG: Found events '\(event1.title)' and '\(event2.title)'. Proceeding with time swap.")
+            
+            // Swap times (keeping all other properties unchanged)
+            let tempStartDate = event1.startDate
+            let tempEndDate = event1.endDate
+            
+            event1.startDate = event2.startDate
+            event1.endDate = event2.endDate
+            
+            event2.startDate = tempStartDate
+            event2.endDate = tempEndDate
+            
+            // Save changes
+            try eventStore.save(event1, span: .thisEvent)
+            try eventStore.save(event2, span: .thisEvent)
+            
+            print("SWAP DEBUG: Swap of times completed successfully.")
+    }
+    // Helper function to find an event by name (exact match, ignoring case and whitespace)
+    private func findEventByName(_ name: String, in events: [EKEvent]) -> EKEvent? {
+        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return events.first { event in
+            return event.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedName
         }
     }
-    
+
     // Helper method to apply clear modifications
     private func applyClearModifications(_ details: ModificationDetails, _ eventsInRange: [EKEvent]) async throws {
         // Implementation for clearing events
@@ -676,7 +653,6 @@ class CalendarManager: ObservableObject {
         }
     }
     
-    // Helper method to find events that match a modification
     private func findEventsForModification(_ modification: EventModification, _ eventsInRange: [EKEvent]) -> [EKEvent] {
         // If no specific criteria are provided, return all events in range
         if modification.eventTitle == nil && modification.originalDate == nil && modification.originalStartTime == nil {
@@ -686,9 +662,13 @@ class CalendarManager: ObservableObject {
         var matchingEvents: [EKEvent] = []
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
+        // Set to UTC so that API strings and event dates align
+        dateFormatter.timeZone = TimeZone.current
         
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm"
+        // Set to UTC for consistent time parsing
+        timeFormatter.timeZone = TimeZone.current
         
         for event in eventsInRange {
             var isMatch = true
@@ -703,8 +683,11 @@ class CalendarManager: ObservableObject {
             if let originalDateString = modification.originalDate {
                 if let originalDate = dateFormatter.date(from: originalDateString) {
                     let calendar = Calendar.current
-                    let eventDay = calendar.startOfDay(for: event.startDate)
-                    let originalDay = calendar.startOfDay(for: originalDate)
+                    // Convert event startDate to UTC for comparison
+                    var utcCalendar = Calendar.current
+                    utcCalendar.timeZone = TimeZone(abbreviation: "UTC")!
+                    let eventDay = utcCalendar.startOfDay(for: event.startDate)
+                    let originalDay = utcCalendar.startOfDay(for: originalDate)
                     let dateMatch = calendar.isDate(eventDay, inSameDayAs: originalDay)
                     isMatch = isMatch && dateMatch
                 } else {
@@ -712,8 +695,8 @@ class CalendarManager: ObservableObject {
                 }
             }
             
-            // Match by start time if specified
-            if let originalStartTimeString = modification.originalStartTime {
+            // Match by start time if specified and not default
+            if let originalStartTimeString = modification.originalStartTime, !originalStartTimeString.isEmpty, originalStartTimeString != "09:00" {
                 if let originalStartTime = timeFormatter.date(from: originalStartTimeString) {
                     let calendar = Calendar.current
                     let eventHour = calendar.component(.hour, from: event.startDate)
