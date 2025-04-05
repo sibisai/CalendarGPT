@@ -150,10 +150,15 @@ class CalendarManager: ObservableObject {
             endDateComponents.hour = endTimeComponents.hour
             endDateComponents.minute = endTimeComponents.minute
             
-            if let endDate = calendar.date(from: endDateComponents) {
-                event.endDate = endDate
+            if let computedEndDate = calendar.date(from: endDateComponents) {
+                // If computed end date is before the start date, add one day.
+                if computedEndDate < startDate {
+                    event.endDate = calendar.date(byAdding: .day, value: 1, to: computedEndDate)
+                } else {
+                    event.endDate = computedEndDate
+                }
             } else {
-                // Default to 1 hour duration
+                // Default to 1 hour duration if creation fails
                 event.endDate = calendar.date(byAdding: .hour, value: 1, to: startDate)
             }
         } else {
@@ -231,10 +236,15 @@ class CalendarManager: ObservableObject {
             endDateComponents.hour = endTimeComponents.hour
             endDateComponents.minute = endTimeComponents.minute
             
-            if let endDate = calendar.date(from: endDateComponents) {
-                event.endDate = endDate
+            if let computedEndDate = calendar.date(from: endDateComponents) {
+                // If computed end date is before the start date, add one day.
+                if computedEndDate < startDate {
+                    event.endDate = calendar.date(byAdding: .day, value: 1, to: computedEndDate)
+                } else {
+                    event.endDate = computedEndDate
+                }
             } else {
-                // Default to 1 hour duration
+                // Default to 1 hour duration if creation fails
                 event.endDate = calendar.date(byAdding: .hour, value: 1, to: startDate)
             }
         } else {
