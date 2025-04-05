@@ -3,7 +3,9 @@
 //  CalendarAssistant
 //
 //  Created by Sibi on 4/4/25 for OpenAI integration.
+//  Updated to fix Auto Layout constraint issues
 //
+
 import UIKit
 import SwiftUI
 
@@ -11,6 +13,7 @@ struct EventConfirmationView: View {
     let eventDetails: EventDetails
     let onConfirm: (EventDetails) -> Void
     @Environment(\.presentationMode) var presentationMode
+    @State private var isKeyboardVisible = false
     
     var body: some View {
         NavigationView {
@@ -51,7 +54,26 @@ struct EventConfirmationView: View {
                 }
             }
             .navigationTitle("Confirm Event")
+            // Add padding at the bottom to avoid keyboard overlap
+            .padding(.bottom, isKeyboardVisible ? 100 : 0)
+            // Listen for keyboard notifications
+            .onAppear {
+                NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { _ in
+                    isKeyboardVisible = true
+                }
+                NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { _ in
+                    isKeyboardVisible = false
+                }
+            }
+            .onDisappear {
+                NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillShowNotification, object: nil)
+                NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillHideNotification, object: nil)
+            }
         }
+        // Use inline presentation style to avoid constraint conflicts
+        .navigationViewStyle(StackNavigationViewStyle())
+        // Disable the swipe-to-dismiss gesture to prevent constraint issues
+        .interactiveDismissDisabled()
     }
     
     // Format date from YYYY-MM-DD to a more readable format

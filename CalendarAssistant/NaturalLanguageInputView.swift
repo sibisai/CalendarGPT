@@ -73,21 +73,36 @@ struct NaturalLanguageInputView: View {
         Task {
             do {
                 let details = try await openAIService.parseEventDetails(from: inputText)
-                
-                DispatchQueue.main.async {
+                await MainActor.run {
                     self.eventDetails = details
                     self.isProcessing = false
                     self.showingConfirmation = true
                 }
             } catch {
-                DispatchQueue.main.async {
-                    print("Error occurred:", error)
+                await MainActor.run {
+                    // Log detailed error for debugging
+                    print("Error occurred during input processing:", error)
                     debugPrint(error)
-                    self.errorMessage = "Error: \(error.localizedDescription)"
+                    
+                    // Map error to a user-friendly message
+                    self.errorMessage = userFriendlyErrorMessage(from: error)
                     self.isProcessing = false
                 }
             }
         }
+    }
+
+    // Helper function to map error details to a user-friendly message
+    private func userFriendlyErrorMessage(from error: Error) -> String {
+        // Check for specific error types or use a default message
+        if let nsError = error as NSError? {
+            // For example, if you detect network issues
+            if nsError.domain == NSURLErrorDomain {
+                return "Network error. Please check your connection and try again."
+            }
+            // Add more error-specific mappings as needed
+        }
+        return "Sorry, we encountered an unexpected error. Please try again later."
     }
     
     private func createEvent(details: EventDetails) {
