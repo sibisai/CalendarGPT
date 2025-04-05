@@ -3,7 +3,7 @@
 //  CalendarAssistant
 //
 //  Created by Sibi on 4/4/25.
-//  Updated with multi-event modification capabilities
+//  Updated with improved UI/UX and day navigation
 //
 
 import UIKit
@@ -20,8 +20,9 @@ struct ContentView: View {
     @State private var showingEventEdit = false
     @State private var errorMessage: String?
     @State private var isRefreshing = false
+    @FocusState private var isInputFocused: Bool
     
-    // New state variables for modification mode
+    // State variables for modification mode
     @State private var isModificationMode = false
     @State private var modificationDetails: ModificationDetails?
     
@@ -36,80 +37,70 @@ struct ContentView: View {
                     .edgesIgnoringSafeArea(.all)
                 
                 VStack(spacing: 0) {
-                    // Enhanced input field
-                    VStack {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 18))
-                                .foregroundColor(.blue)
-                                .padding(.leading, 8)
-                            
-                            TextField("Add event or modify events (e.g., Meeting with John tomorrow at 2pm)", text: $inputText)
-                                .padding(10)
-                                .background(Color(.systemBackground))
-                                .cornerRadius(8)
-                                .disabled(isProcessing)
-                                .submitLabel(.send)
-                                .onSubmit {
-                                    if !inputText.isEmpty {
-                                        processInput()
-                                    }
-                                }
-                            
-                            if !inputText.isEmpty {
-                                Button(action: {
-                                    processInput()
-                                }) {
-                                    Image(systemName: "arrow.up.circle.fill")
-                                        .font(.system(size: 24))
-                                        .foregroundColor(.blue)
-                                }
-                                .disabled(isProcessing)
-                                .padding(.trailing, 8)
-                            }
-                        }
-                        .padding(.vertical, 12)
-                        .padding(.horizontal, 8)
-                        .background(Color(.systemBackground))
-                        .cornerRadius(16)
-                        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
-                        .padding(.bottom, 8)
-                        
-                        if isProcessing {
-                            HStack {
-                                ProgressView()
-                                    .padding(.trailing, 8)
-                                Text("Processing...")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.top, 8)
-                        }
-                        
-                        if let error = errorMessage {
-                            Text(error)
-                                .font(.system(size: 14))
-                                .foregroundColor(.red)
-                                .padding(.top, 8)
-                        }
-                    }
-                    .padding(.bottom, 8)
-                    
-                    // Date header
+                    // Date header with navigation controls
                     HStack {
-                        VStack(alignment: .leading) {
-                            Text(formattedDate())
+                        // Previous day button
+                        Button(action: {
+                            calendarManager.goToPreviousDay()
+                        }) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.blue)
+                        }
+                        .padding(.horizontal, 8)
+                        
+                        Spacer()
+                        
+                        // Date display
+                        VStack(alignment: .center) {
+                            Text(calendarManager.formattedSelectedDate())
                                 .font(.system(size: 16, weight: .medium))
                                 .foregroundColor(.secondary)
                             
-                            Text("Today")
-                                .font(.system(size: 24, weight: .bold))
+                            if !calendarManager.selectedDayLabel().isEmpty {
+                                Text(calendarManager.selectedDayLabel())
+                                    .font(.system(size: 24, weight: .bold))
+                            }
                         }
                         
                         Spacer()
                         
+                        // Next day button
+                        Button(action: {
+                            calendarManager.goToNextDay()
+                        }) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.blue)
+                        }
+                        .padding(.horizontal, 8)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 16)
+                    .padding(.bottom, 8)
+                    
+                    // Today button and refresh
+                    HStack {
+                        // Today button
+                        Button(action: {
+                            calendarManager.goToToday()
+                        }) {
+                            Text("Today")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(Color.blue)
+                                )
+                        }
+                        .opacity(calendarManager.isSelectedDateToday() ? 0.5 : 1.0)
+                        .disabled(calendarManager.isSelectedDateToday())
+                        
+                        Spacer()
+                        
+                        // Refresh button
                         Button(action: {
                             // Manually trigger refresh
                             Task {
@@ -122,11 +113,9 @@ struct ContentView: View {
                         }
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, 8)
-                    .padding(.bottom, 16)
-
+                    .padding(.bottom, 12)
                     
-                    // Enhanced calendar events list with pull-to-refresh
+                    // Calendar events list with pull-to-refresh
                     ScrollView {
                         LazyVStack(spacing: 0) {
                             ForEach(groupedEvents.keys.sorted(), id: \.self) { hour in
@@ -158,14 +147,14 @@ struct ContentView: View {
                                 }
                             }
                             
-                            if calendarManager.todaysEvents.isEmpty {
+                            if calendarManager.events.isEmpty {
                                 VStack {
                                     Image(systemName: "calendar.badge.clock")
                                         .font(.system(size: 48))
                                         .foregroundColor(.secondary.opacity(0.5))
                                         .padding(.bottom, 16)
                                     
-                                    Text("No events for today")
+                                    Text("No events for this day")
                                         .font(.system(size: 18, weight: .medium))
                                         .foregroundColor(.secondary)
                                     
@@ -177,19 +166,86 @@ struct ContentView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 60)
                             }
+                            
+                            // Add extra padding at the bottom to account for input field
+                            Spacer()
+                                .frame(height: 80)
                         }
                         .padding(.bottom, 20)
                     }
                     .refreshable {
                         await refreshCalendar()
                     }
+                    
+                    Spacer()
+                }
+                
+                // Input field at the bottom
+                VStack {
+                    Spacer()
+                    
+                    // Processing indicator and error message
+                    if isProcessing {
+                        HStack {
+                            ProgressView()
+                                .padding(.trailing, 8)
+                            Text("Processing...")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.bottom, 8)
+                        .padding(.horizontal, 20)
+                    } else if let error = errorMessage {
+                        Text(error)
+                            .font(.system(size: 14))
+                            .foregroundColor(.red)
+                            .padding(.bottom, 8)
+                            .padding(.horizontal, 20)
+                    }
+                    
+                    // Input field with send button
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(.blue)
+                            .padding(.leading, 12)
+                        
+                        TextField("Add event or modify events...", text: $inputText)
+                            .padding(12)
+                            .background(Color(.systemBackground))
+                            .cornerRadius(20)
+                            .disabled(isProcessing)
+                            .submitLabel(.return) // Use return key instead of send
+                            .focused($isInputFocused)
+                            .onSubmit {
+                                if !inputText.isEmpty {
+                                    processInput()
+                                }
+                            }
+                        
+                        Button(action: {
+                            if !inputText.isEmpty {
+                                processInput()
+                            }
+                        }) {
+                            Image(systemName: "paperplane.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(.blue)
+                        }
+                        .disabled(inputText.isEmpty || isProcessing)
+                        .padding(.trailing, 12)
+                    }
+                    .padding(.vertical, 10)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(25)
+                    .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: -2)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
                 }
             }
             .onAppear {
                 calendarManager.requestAccess()
             }
-            .navigationTitle("ICGPT")
-            .navigationBarTitleDisplayMode(.large)
             .sheet(isPresented: $showingConfirmation) {
                 if isModificationMode, let details = modificationDetails {
                     ModificationConfirmationView(modificationDetails: details, onConfirm: applyModifications)
@@ -216,7 +272,7 @@ struct ContentView: View {
     private var groupedEvents: [Int: [EKEvent]] {
         var result: [Int: [EKEvent]] = [:]
         
-        for event in calendarManager.todaysEvents {
+        for event in calendarManager.events {
             let hour = Calendar.current.component(.hour, from: event.startDate)
             if result[hour] == nil {
                 result[hour] = []
@@ -244,13 +300,6 @@ struct ContentView: View {
         return "\(hour)"
     }
     
-    // Format today's date
-    private func formattedDate() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMMM d"
-        return formatter.string(from: Date())
-    }
-    
     // Function to refresh calendar data with visual feedback
     private func refreshCalendar() async {
         withAnimation {
@@ -261,8 +310,8 @@ struct ContentView: View {
         try? await Task.sleep(nanoseconds: 800_000_000)
         
         await MainActor.run {
-            calendarManager.loadTodaysEvents()
-            print("Loaded \(calendarManager.todaysEvents.count) events")
+            calendarManager.loadEventsForSelectedDate()
+            print("Loaded \(calendarManager.events.count) events")
             
             withAnimation {
                 isRefreshing = false
@@ -270,16 +319,17 @@ struct ContentView: View {
         }
     }
 
-    // Updated process input method to handle both single events and modifications
+    // Process input method to handle both single events and modifications
     private func processInput() {
         guard !inputText.isEmpty else { return }
         
         isProcessing = true
         errorMessage = nil
+        isInputFocused = false // Dismiss keyboard
         
         Task {
             do {
-                // Use the new combined method to classify and parse input
+                // Use the combined method to classify and parse input
                 let result = try await openAIService.classifyAndParseInput(from: inputText)
                 print("INPUT TYPE: \(result)")
                 await MainActor.run {
@@ -310,7 +360,7 @@ struct ContentView: View {
         }
     }
     
-    // Existing method for creating a single event
+    // Method for creating a single event
     private func createEvent(details: EventDetails) {
         Task {
             do {
@@ -327,7 +377,7 @@ struct ContentView: View {
         }
     }
     
-    // New method for applying modifications to multiple events
+    // Method for applying modifications to multiple events
     private func applyModifications(details: ModificationDetails) {
         Task {
             do {
@@ -345,7 +395,7 @@ struct ContentView: View {
     }
 }
 
-// Event row component for the list (unchanged)
+// Event row component for the list
 struct EventRow: View {
     let event: EKEvent
     

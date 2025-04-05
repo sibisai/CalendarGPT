@@ -3,7 +3,7 @@
 //  CalendarAssistant
 //
 //  Created by Sibi on 4/4/25.
-//  Updated with multi-event modification capabilities
+//  Updated with multi-event modification capabilities and day navigation
 //
 
 import Foundation
@@ -13,7 +13,9 @@ import SwiftUI
 class CalendarManager: ObservableObject {
     private var eventStore = EKEventStore()
     @Published var todaysEvents: [EKEvent] = []
+    @Published var events: [EKEvent] = []
     @Published var hasCalendarAccess = false
+    @Published var selectedDate: Date = Date() // New property to track selected date
     
     func requestAccess() {
         if #available(iOS 17.0, *) {
@@ -36,7 +38,7 @@ class CalendarManager: ObservableObject {
             }
         }
     }
-    
+
     // Helper function to convert authorization status to string
     private func authStatusString(_ status: EKAuthorizationStatus) -> String {
         if #available(iOS 17.0, *) {
@@ -65,7 +67,7 @@ class CalendarManager: ObservableObject {
                 return "denied"
             case .authorized:
                 return "authorized"
-                // These cases won't be reached in iOS 16, but needed for exhaustive switch
+            // These cases won't be reached in iOS 16, but needed for exhaustive switch
             case .fullAccess:
                 return "fullAccess"
             case .writeOnly:
@@ -76,15 +78,45 @@ class CalendarManager: ObservableObject {
         }
     }
     
+    // New method to navigate to previous day
+    func goToPreviousDay() {
+        if let previousDay = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) {
+            selectedDate = previousDay
+            loadEventsForSelectedDate()
+        }
+    }
+    
+    // New method to navigate to next day
+    func goToNextDay() {
+        if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) {
+            selectedDate = nextDay
+            loadEventsForSelectedDate()
+        }
+    }
+    
+    // New method to go to today
+    func goToToday() {
+        selectedDate = Date()
+        loadEventsForSelectedDate()
+    }
+    
+    // Original method to load today's events (maintained for compatibility)
     func loadTodaysEvents() {
+        // Reset selectedDate to today and load events
+        selectedDate = Date()
+        loadEventsForSelectedDate()
+    }
+    
+    // New method to load events for the selected date
+    func loadEventsForSelectedDate() {
         guard hasCalendarAccess else {
             return
         }
         
         let calendar = Calendar.current
         
-        // Get start and end of today
-        let startDate = calendar.startOfDay(for: Date())
+        // Get start and end of selected date
+        let startDate = calendar.startOfDay(for: selectedDate)
         var components = DateComponents()
         components.day = 1
         let endDate = calendar.date(byAdding: components, to: startDate)!
@@ -93,10 +125,10 @@ class CalendarManager: ObservableObject {
         let predicate = eventStore.predicateForEvents(withStart: startDate, end: endDate, calendars: nil)
         
         // Fetch events
-        let events = eventStore.events(matching: predicate)
+        let fetchedEvents = eventStore.events(matching: predicate)
         
         // Always filter out all-day events
-        let filteredEvents = events.filter { !$0.isAllDay }
+        let filteredEvents = fetchedEvents.filter { !$0.isAllDay }
         
         // Sort events by start date
         let sortedEvents = filteredEvents.sorted {
@@ -104,8 +136,38 @@ class CalendarManager: ObservableObject {
         }
         
         DispatchQueue.main.async {
-            self.todaysEvents = sortedEvents
+            self.events = sortedEvents
+            // Also update todaysEvents for backward compatibility
+            if calendar.isDateInToday(self.selectedDate) {
+                self.todaysEvents = sortedEvents
+            }
         }
+    }
+    
+    // Helper method to check if selected date is today
+    func isSelectedDateToday() -> Bool {
+        return Calendar.current.isDateInToday(selectedDate)
+    }
+    
+    // Format selected date for display
+    func formattedSelectedDate() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMMM d"
+        return formatter.string(from: selectedDate)
+    }
+    
+    // Get day label (Today, Tomorrow, Yesterday, or empty)
+    func selectedDayLabel() -> String {
+        let calendar = Calendar.current
+        
+        if calendar.isDateInToday(selectedDate) {
+            return "Today"
+        } else if calendar.isDateInYesterday(selectedDate) {
+            return "Yesterday"
+        } else if calendar.isDateInTomorrow(selectedDate) {
+            return "Tomorrow"
+        }
+        return ""
     }
     
     // Create event from parsed details
@@ -179,7 +241,7 @@ class CalendarManager: ObservableObject {
         
         // Refresh the events list
         await MainActor.run {
-            self.loadTodaysEvents()
+            self.loadEventsForSelectedDate()
         }
     }
     
@@ -189,14 +251,7 @@ class CalendarManager: ObservableObject {
             print("\(index + 1). \(calendar.title) (source: \(calendar.source.title)) - Writable: \(calendar.allowsContentModifications)")
         }
     }
-    /*
-    func checkTimeZoneSettings() {
-        print("Current time zone: \(TimeZone.current.identifier)")
-        print("Calendar time zone: \(Calendar.current.timeZone.identifier)")
-        print("Current date: \(Date())")
-        print("Start of today: \(Calendar.current.startOfDay(for: Date()))")
-    }
-    */
+    
     // Update an existing event
     func updateEvent(_ event: EKEvent, with details: EventDetails) async throws {
         // Set the title
@@ -262,7 +317,7 @@ class CalendarManager: ObservableObject {
         
         // Refresh the events list
         await MainActor.run {
-            self.loadTodaysEvents()
+            self.loadEventsForSelectedDate()
         }
     }
     
@@ -272,7 +327,7 @@ class CalendarManager: ObservableObject {
         
         // Refresh the events list
         await MainActor.run {
-            self.loadTodaysEvents()
+            self.loadEventsForSelectedDate()
         }
     }
     
@@ -297,7 +352,7 @@ class CalendarManager: ObservableObject {
         )
     }
     
-    // New method to apply modifications to multiple events
+    // Apply modifications to multiple events
     func applyModifications(modificationDetails: ModificationDetails) async throws {
         // Get date formatters
         let dateFormatter = DateFormatter()
@@ -362,21 +417,16 @@ class CalendarManager: ObservableObject {
         
         // Refresh the events list
         await MainActor.run {
-            self.loadTodaysEvents()
+            self.loadEventsForSelectedDate()
         }
     }
-    
     
     // Helper method to apply swap modifications
     private func applySwapModifications(_ details: ModificationDetails, _ eventsInRange: [EKEvent], _ dateFormatter: DateFormatter, _ timeFormatter: DateFormatter) async throws {
         // Expecting the event_modifications array to contain exactly two modifications with non-nil event titles.
-            guard details.eventModifications.count == 2,
-                  let name1 = details.eventModifications[0].eventTitle,
-                  let name2 = details.eventModifications[1].eventTitle else {
-                print("SWAP DEBUG: Please specify exactly two event titles for swapping.")
-                return
-            }
-            
+        guard details.eventModifications.count == 2,
+              let name1 = details.eventModifications[0].eventTitle,
+              let name2 = details.eventModifications[1].eventTitle else {
             // Filter events for today
             let calendar = Calendar.current
             let today = calendar.startOfDay(for: Date())
@@ -386,30 +436,59 @@ class CalendarManager: ObservableObject {
                 return eventDay >= today && eventDay < tomorrow
             }
             
-            guard let event1 = findEventByName(name1, in: todayEvents),
-                  let event2 = findEventByName(name2, in: todayEvents) else {
-                print("SWAP DEBUG: Could not find both events by the provided names.")
-                return
+            // If we don't have specific event titles, try to swap the first two events of the day
+            if todayEvents.count >= 2 {
+                let event1 = todayEvents[0]
+                let event2 = todayEvents[1]
+                
+                // Check if calendars allow modifications
+                if !event1.calendar.allowsContentModifications || !event2.calendar.allowsContentModifications {
+                    return
+                }
+                
+                // Swap times (keeping all other properties unchanged)
+                let tempStartDate = event1.startDate
+                let tempEndDate = event1.endDate
+                
+                event1.startDate = event2.startDate
+                event1.endDate = event2.endDate
+                
+                event2.startDate = tempStartDate
+                event2.endDate = tempEndDate
+                
+                // Save changes
+                try eventStore.save(event1, span: .thisEvent)
+                try eventStore.save(event2, span: .thisEvent)
             }
-            
-//            print("SWAP DEBUG: Found events '\(event1.title)' and '\(event2.title)'. Proceeding with time swap.")
-            
-            // Swap times (keeping all other properties unchanged)
-            let tempStartDate = event1.startDate
-            let tempEndDate = event1.endDate
-            
-            event1.startDate = event2.startDate
-            event1.endDate = event2.endDate
-            
-            event2.startDate = tempStartDate
-            event2.endDate = tempEndDate
-            
-            // Save changes
-            try eventStore.save(event1, span: .thisEvent)
-            try eventStore.save(event2, span: .thisEvent)
-            
-            print("SWAP DEBUG: Swap of times completed successfully.")
+            return
+        }
+        
+        // Find events by name
+        guard let event1 = findEventByName(name1, in: eventsInRange),
+              let event2 = findEventByName(name2, in: eventsInRange) else {
+            return
+        }
+        
+        // Check if calendars allow modifications
+        if !event1.calendar.allowsContentModifications || !event2.calendar.allowsContentModifications {
+            return
+        }
+        
+        // Swap times (keeping all other properties unchanged)
+        let tempStartDate = event1.startDate
+        let tempEndDate = event1.endDate
+        
+        event1.startDate = event2.startDate
+        event1.endDate = event2.endDate
+        
+        event2.startDate = tempStartDate
+        event2.endDate = tempEndDate
+        
+        // Save changes
+        try eventStore.save(event1, span: .thisEvent)
+        try eventStore.save(event2, span: .thisEvent)
     }
+    
     // Helper function to find an event by name (exact match, ignoring case and whitespace)
     private func findEventByName(_ name: String, in events: [EKEvent]) -> EKEvent? {
         let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
