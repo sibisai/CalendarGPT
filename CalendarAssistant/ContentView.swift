@@ -118,52 +118,7 @@ struct ContentView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
                     .padding(.bottom, 16)
-                    
-                    /*
-                    #if DEBUG
-                    VStack(alignment: .leading) {
-                        Text("Debug Info:")
-                            .font(.system(size: 14, weight: .bold))
-                        
-                        Text("Calendar access: \(calendarManager.hasCalendarAccess ? "Granted" : "Denied")")
-                            .font(.system(size: 12))
-                        
-                        Text("Events count: \(calendarManager.todaysEvents.count)")
-                            .font(.system(size: 12))
-                        
-                        Button("Create Test Events") {
-                            calendarManager.createTestEvents()
-                        }
-                        .font(.system(size: 12, weight: .medium))
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 8)
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(4)
-                        .padding(.top, 4)
-                        
-                        if !calendarManager.hasCalendarAccess {
-                            Button("Open Settings") {
-                                if let url = URL(string: UIApplication.openSettingsURLString) {
-                                    UIApplication.shared.open(url)
-                                }
-                            }
-                            .font(.system(size: 12, weight: .medium))
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 8)
-                            .background(Color.red)
-                            .foregroundColor(.white)
-                            .cornerRadius(4)
-                            .padding(.top, 4)
-                        }
-                    }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(8)
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                    #endif
-                     */
+
                     
                     // Enhanced calendar events list with pull-to-refresh
                     ScrollView {
@@ -227,7 +182,7 @@ struct ContentView: View {
             .onAppear {
                 calendarManager.requestAccess()
             }
-            .navigationTitle("Calendar GPT")
+            .navigationTitle("ICGPT")
             .navigationBarTitleDisplayMode(.large)
             .sheet(isPresented: $showingConfirmation) {
                 if let details = eventDetails {

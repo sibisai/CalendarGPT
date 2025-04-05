@@ -76,60 +76,6 @@ class CalendarManager: ObservableObject {
             }
         }
     }
-
-
-
-    
-    // Add this function to your CalendarManager class
-    func createTestEvents() {
-        guard hasCalendarAccess else {
-            print("Cannot create test events: No calendar access")
-            return
-        }
-        
-        let calendar = Calendar.current
-        let now = Date()
-        let startOfDay = calendar.startOfDay(for: now)
-        
-        // Create a few test events at different times today
-        let eventTitles = ["Morning Meeting", "Lunch with Team", "Afternoon Review", "Evening Workout"]
-        let startHours = [9, 12, 15, 18]
-        
-        for (index, title) in eventTitles.enumerated() {
-            let event = EKEvent(eventStore: eventStore)
-            event.title = title
-            
-            // Set start time (hours from start of day)
-            var startComponents = DateComponents()
-            startComponents.hour = startHours[index]
-            startComponents.minute = 0
-            let startDate = calendar.date(byAdding: startComponents, to: startOfDay)!
-            event.startDate = startDate
-            
-            // Set end time (1 hour after start)
-            event.endDate = calendar.date(byAdding: .hour, value: 1, to: startDate)!
-            
-            // Add location for some events
-            if index % 2 == 0 {
-                event.location = "Office Room \(index + 1)"
-            }
-            
-            // Set calendar (default to primary calendar)
-            event.calendar = eventStore.defaultCalendarForNewEvents
-            
-            // Try to save the event
-            do {
-                try eventStore.save(event, span: .thisEvent)
-                print("Created test event: \(title)")
-            } catch {
-                print("Failed to create test event: \(error.localizedDescription)")
-            }
-        }
-        
-        // Reload events after creating test data
-        loadTodaysEvents()
-    }
-
     
     func loadTodaysEvents() {
         guard hasCalendarAccess else {
@@ -162,12 +108,13 @@ class CalendarManager: ObservableObject {
         let sortedEvents = filteredEvents.sorted {
             $0.startDate < $1.startDate
         }
-        
+        /* // For test printing events
         for (index, event) in sortedEvents.enumerated() {
             let title = event.title ?? "Untitled"
             let startDate = event.startDate?.description ?? "Unknown start date"
             print("Event \(index + 1): \(title) at \(startDate)")
         }
+        */
         
         DispatchQueue.main.async {
             self.todaysEvents = sortedEvents
@@ -260,7 +207,7 @@ class CalendarManager: ObservableObject {
         print("Start of today: \(Calendar.current.startOfDay(for: Date()))")
     }
     
-    // NEW: Update an existing event
+    // Update an existing event
     func updateEvent(_ event: EKEvent, with details: EventDetails) async throws {
         // Set the title
         event.title = details.title
@@ -324,7 +271,7 @@ class CalendarManager: ObservableObject {
         }
     }
     
-    // NEW: Delete an event
+    // Delete an event
     func deleteEvent(_ event: EKEvent) async throws {
         try eventStore.remove(event, span: .thisEvent)
         
@@ -334,7 +281,7 @@ class CalendarManager: ObservableObject {
         }
     }
     
-    // NEW: Convert EKEvent to EventDetails for editing
+    // Convert EKEvent to EventDetails for editing
     func convertToEventDetails(_ event: EKEvent) -> EventDetails {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"

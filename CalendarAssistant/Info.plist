@@ -6,6 +6,8 @@
 	<string>Calendar Assistant needs access to your calendar to display events.</string>
 	<key>OpenAIAPIKey</key>
 	<string>$(OPENAI_API_KEY)</string>
+	<key>CFBundleDisplayName</key>
+	<string>ICGPT</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Calendar Assistant needs full access to your calendar to display and create events.</string>
 </dict>
