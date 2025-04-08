@@ -3,79 +3,50 @@
 //  CalendarAssistant
 //
 //  Created by Sibi on 4/4/25 for multi-event modification capabilities.
+//  Updated with haptic and animation feedback
 //
 
-import UIKit
 import SwiftUI
 
 struct ModificationConfirmationView: View {
     let modificationDetails: ModificationDetails
     let onConfirm: (ModificationDetails) -> Void
     @Environment(\.presentationMode) var presentationMode
+    @State private var isKeyboardVisible = false
+    @State private var isConfirming = false // For animation
+    @State private var isCancelling = false // For animation
     
     var body: some View {
         NavigationView {
             Form {
                 Section(header: Text("Modification Details")) {
-                    Text("Type: \(formatModificationType(modificationDetails.modificationType))")
-                        .fontWeight(.medium)
+                    Text("Type: \(modificationDetails.modificationType.rawValue.capitalized)")
                     
-                    if let timeRangeStart = modificationDetails.timeRangeStart,
-                       let timeRangeEnd = modificationDetails.timeRangeEnd {
-                        Text("Time Range: \(formatDate(timeRangeStart)) to \(formatDate(timeRangeEnd))")
+                    if let start = modificationDetails.timeRangeStart {
+                        Text("From: \(formatDate(start))")
+                    }
+                    
+                    if let end = modificationDetails.timeRangeEnd {
+                        Text("To: \(formatDate(end))")
                     }
                     
                     Text("Description: \(modificationDetails.description)")
-                        .padding(.vertical, 4)
-                }
-                
-                Section(header: Text("Events to Modify")) {
-                    if modificationDetails.eventModifications.isEmpty {
-                        Text("All events in the specified time range")
-                            .foregroundColor(.secondary)
-                    } else {
+                    
+                    if !modificationDetails.eventModifications.isEmpty {
                         ForEach(0..<modificationDetails.eventModifications.count, id: \.self) { index in
                             let modification = modificationDetails.eventModifications[index]
                             VStack(alignment: .leading, spacing: 4) {
                                 if let title = modification.eventTitle {
-                                    Text(title)
-                                        .fontWeight(.medium)
+                                    Text("Event: \(title)")
+                                        .font(.headline)
                                 }
                                 
                                 if let originalDate = modification.originalDate {
-                                    Text("Date: \(formatDate(originalDate))")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                                
-                                if let originalTime = modification.originalStartTime {
-                                    Text("Time: \(formatTime(originalTime))")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                                
-                                if let newTitle = modification.newTitle {
-                                    Text("New Title: \(newTitle)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.blue)
-                                }
-                                
-                                if let newLocation = modification.newLocation {
-                                    Text("New Location: \(newLocation)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.blue)
-                                }
-                                
-                                if let newTime = modification.newStartTime {
-                                    Text("New Time: \(formatTime(newTime))")
-                                        .font(.subheadline)
-                                        .foregroundColor(.blue)
+                                    Text("Original Date: \(formatDate(originalDate))")
                                 }
                                 
                                 if let targetDate = modification.targetDate {
                                     Text("Target Date: \(formatDate(targetDate))")
-                                        .font(.subheadline)
-                                        .foregroundColor(.blue)
                                 }
                             }
                             .padding(.vertical, 4)
@@ -85,37 +56,74 @@ struct ModificationConfirmationView: View {
                 
                 Section {
                     Button("Confirm and Apply Changes") {
-                        onConfirm(modificationDetails)
-                        presentationMode.wrappedValue.dismiss()
+                        // Trigger haptic feedback
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.impactOccurred()
+                        
+                        // Trigger animation
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                            isConfirming = true
+                        }
+                        
+                        // Reset animation after delay and perform action
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            withAnimation {
+                                isConfirming = false
+                            }
+                            onConfirm(modificationDetails)
+                            presentationMode.wrappedValue.dismiss()
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .foregroundColor(.blue)
+                    .scaleEffect(isConfirming ? 0.95 : 1.0) // Scale animation
                 }
                 
                 Section {
                     Button("Cancel") {
-                        presentationMode.wrappedValue.dismiss()
+                        // Trigger haptic feedback
+                        let generator = UIImpactFeedbackGenerator(style: .light)
+                        generator.impactOccurred()
+                        
+                        // Trigger animation
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                            isCancelling = true
+                        }
+                        
+                        // Reset animation after delay and perform action
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            withAnimation {
+                                isCancelling = false
+                            }
+                            presentationMode.wrappedValue.dismiss()
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .foregroundColor(.red)
+                    .scaleEffect(isCancelling ? 0.95 : 1.0) // Scale animation
                 }
             }
-            .navigationTitle("Confirm Modifications")
+            .navigationTitle("Confirm Modification")
+            // Add padding at the bottom to avoid keyboard overlap
+            .padding(.bottom, isKeyboardVisible ? 100 : 0)
+            // Listen for keyboard notifications
+            .onAppear {
+                NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { _ in
+                    isKeyboardVisible = true
+                }
+                NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { _ in
+                    isKeyboardVisible = false
+                }
+            }
+            .onDisappear {
+                NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillShowNotification, object: nil)
+                NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillHideNotification, object: nil)
+            }
         }
-    }
-    
-    // Format modification type to be more user-friendly
-    private func formatModificationType(_ type: ModificationType) -> String {
-        switch type {
-        case .swap:
-            return "Swap Events"
-        case .clear:
-            return "Clear Events"
-        case .copy:
-            return "Copy Events"
-        case .other:
-            return "Custom Modification"
-        }
+        // Use inline presentation style to avoid constraint conflicts
+        .navigationViewStyle(StackNavigationViewStyle())
+        // Disable the swipe-to-dismiss gesture to prevent constraint issues
+        .interactiveDismissDisabled()
     }
     
     // Format date from YYYY-MM-DD to a more readable format
@@ -130,39 +138,4 @@ struct ModificationConfirmationView: View {
         }
         return dateString
     }
-    
-    // Format time from 24-hour (HH:MM) to AM/PM format
-    private func formatTime(_ timeString: String) -> String {
-        let inputFormatter = DateFormatter()
-        inputFormatter.dateFormat = "HH:mm"
-        
-        if let time = inputFormatter.date(from: timeString) {
-            let outputFormatter = DateFormatter()
-            outputFormatter.timeStyle = .short // This will use the device's preferred format (usually AM/PM in US)
-            return outputFormatter.string(from: time)
-        }
-        return timeString
-    }
 }
-
-#Preview {
-    ModificationConfirmationView(
-        modificationDetails: ModificationDetails(
-            modificationType: .swap,
-            timeRangeStart: "2025-04-05",
-            timeRangeEnd: "2025-04-15",
-            eventModifications: [
-                EventModification(
-                    eventTitle: "Team Meeting",
-                    originalDate: "2025-04-05",
-                    originalStartTime: "14:00",
-                    targetDate: "2025-04-06",
-                    targetStartTime: "15:00"
-                )
-            ],
-            description: "Swap team meetings between days"
-        ),
-        onConfirm: { _ in }
-    )
-}
-

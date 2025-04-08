@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		133BAC282DA0D34A007EB1DD /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 133BAC222DA0D34A007EB1DD /* README.md */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		133BABCB2DA071CB007EB1DD /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +31,7 @@
 		133BABBD2DA071C9007EB1DD /* CalendarAssistant.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CalendarAssistant.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		133BABCA2DA071CB007EB1DD /* CalendarAssistantTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CalendarAssistantTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		133BABD42DA071CB007EB1DD /* CalendarAssistantUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CalendarAssistantUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		133BAC222DA0D34A007EB1DD /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -92,6 +97,7 @@
 				133BABCD2DA071CB007EB1DD /* CalendarAssistantTests */,
 				133BABD72DA071CB007EB1DD /* CalendarAssistantUITests */,
 				133BABBE2DA071C9007EB1DD /* Products */,
+				133BAC222DA0D34A007EB1DD /* README.md */,
 			);
 			sourceTree = "<group>";
 		};
@@ -225,6 +231,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				133BAC282DA0D34A007EB1DD /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

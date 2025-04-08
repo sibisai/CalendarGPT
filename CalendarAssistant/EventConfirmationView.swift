@@ -3,7 +3,7 @@
 //  CalendarAssistant
 //
 //  Created by Sibi on 4/4/25 for OpenAI integration.
-//  Updated to fix Auto Layout constraint issues
+//  Updated to fix Auto Layout constraint issues and add feedback
 //
 
 import UIKit
@@ -14,6 +14,8 @@ struct EventConfirmationView: View {
     let onConfirm: (EventDetails) -> Void
     @Environment(\.presentationMode) var presentationMode
     @State private var isKeyboardVisible = false
+    @State private var isConfirming = false // For animation
+    @State private var isCancelling = false // For animation
     
     var body: some View {
         NavigationView {
@@ -38,19 +40,51 @@ struct EventConfirmationView: View {
                 
                 Section {
                     Button("Confirm and Create Event") {
-                        onConfirm(eventDetails)
-                        presentationMode.wrappedValue.dismiss()
+                        // Trigger haptic feedback
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.impactOccurred()
+                        
+                        // Trigger animation
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                            isConfirming = true
+                        }
+                        
+                        // Reset animation after delay and perform action
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            withAnimation {
+                                isConfirming = false
+                            }
+                            onConfirm(eventDetails)
+                            presentationMode.wrappedValue.dismiss()
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .foregroundColor(.blue)
+                    .scaleEffect(isConfirming ? 0.95 : 1.0) // Scale animation
                 }
                 
                 Section {
                     Button("Cancel") {
-                        presentationMode.wrappedValue.dismiss()
+                        // Trigger haptic feedback
+                        let generator = UIImpactFeedbackGenerator(style: .light)
+                        generator.impactOccurred()
+                        
+                        // Trigger animation
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                            isCancelling = true
+                        }
+                        
+                        // Reset animation after delay and perform action
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            withAnimation {
+                                isCancelling = false
+                            }
+                            presentationMode.wrappedValue.dismiss()
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .foregroundColor(.red)
+                    .scaleEffect(isCancelling ? 0.95 : 1.0) // Scale animation
                 }
             }
             .navigationTitle("Confirm Event")
