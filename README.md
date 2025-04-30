@@ -10,7 +10,6 @@ A natural language calendar management app for iOS that allows you to create, ed
 - Filter out all-day events for a cleaner view
 - Color-code events based on calendar categories
 - Secure handling of API keys and sensitive data
-- Haptic and animation feedback for enhanced user experience
 - Multi-event modification capabilities
   - Swap events between time slots
   - Clear events in a specific time range
@@ -22,7 +21,6 @@ A natural language calendar management app for iOS that allows you to create, ed
 - Intuitive messaging-style interface with input field at the bottom
 - Day navigation with previous/next buttons and Today shortcut
 - Visual day indicators (Today, Yesterday, Tomorrow)
-- Responsive animations and haptic feedback on interactions
 - Proper keyboard behavior with return key and automatic dismissal
 - Send button with paperplane icon for intuitive input submission
 
@@ -86,7 +84,6 @@ This application uses several security measures to protect sensitive information
 6. Use the navigation buttons to view different days
 7. Tap on events to edit or delete them
 8. Change event calendars to organize with different colors
-9. Feel the haptic feedback and animations for a more engaging experience
 
 ## Calendar Features
 
@@ -137,21 +134,6 @@ Duplicates events from one time period to another. For example:
 Applies specific changes to multiple events. For example:
 - "Change all meetings with Sarah to online"
 - "Move all afternoon events 30 minutes later"
-
-## Haptic and Animation Feedback
-
-The app provides sensory feedback to enhance the user experience:
-
-### Haptic Feedback
-- Medium impact haptic when submitting input
-- Success notification haptic when events are created successfully
-- Error notification haptic when operations fail
-- Light impact haptic for cancel actions
-
-### Animation Feedback
-- Scale animations on input submission
-- Button press animations for confirmation and cancellation
-- Spring physics for natural-feeling interactions
 
 ## Contributing
 
